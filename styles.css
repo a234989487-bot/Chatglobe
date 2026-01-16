@@ -1,0 +1,381 @@
+// DOM Elements
+const chatMessages = document.getElementById('chat-messages');
+const messageInput = document.getElementById('message-input');
+const sendBtn = document.getElementById('send-btn');
+const newChatBtn = document.getElementById('new-chat-btn');
+const stopChatBtn = document.getElementById('stop-chat-btn');
+const interestBtn = document.getElementById('interest-btn');
+const interestsContainer = document.getElementById('interests-container');
+const partnerName = document.getElementById('partner-name');
+const partnerLocation = document.getElementById('partner-location');
+const partnerAvatar = document.getElementById('partner-avatar');
+const statusDot = document.getElementById('status-dot');
+const statusText = document.getElementById('status-text');
+const userCount = document.getElementById('user-count');
+const chatCount = document.getElementById('chat-count');
+const languageSelect = document.getElementById('language-select');
+const anonymousMode = document.getElementById('anonymous-mode');
+const safeMode = document.getElementById('safe-mode');
+const locationShare = document.getElementById('location-share');
+
+// Chat state
+let isConnected = false;
+let currentPartner = null;
+let selectedInterests = new Set(['music', 'gaming']);
+let messageCount = 0;
+
+// Simulated user data
+const simulatedUsers = [
+    { name: "Alex", location: "New York, USA", avatar: "A", interests: ["music", "movies", "travel"] },
+    { name: "Sophia", location: "London, UK", avatar: "S", interests: ["art", "tech", "food"] },
+    { name: "Kenji", location: "Tokyo, Japan", avatar: "K", interests: ["gaming", "tech", "music"] },
+    { name: "Maria", location: "Madrid, Spain", avatar: "M", interests: ["travel", "food", "sports"] },
+    { name: "David", location: "Sydney, Australia", avatar: "D", interests: ["sports", "music", "movies"] },
+    { name: "Lena", location: "Berlin, Germany", avatar: "L", interests: ["art", "travel", "tech"] }
+];
+
+// Simulated user count (random between 1000-5000)
+let simulatedUserCount = Math.floor(Math.random() * 4000) + 1000;
+let simulatedChatCount = Math.floor(simulatedUserCount / 2);
+
+// Initialize
+function init() {
+    updateUserCounts();
+    setupInterestTags();
+    setupEventListeners();
+    
+    // Update user counts every 10 seconds
+    setInterval(updateUserCounts, 10000);
+}
+
+// Update user and chat counts
+function updateUserCounts() {
+    // Randomly change counts to simulate activity
+    const userChange = Math.floor(Math.random() * 100) - 50;
+    const chatChange = Math.floor(Math.random() * 50) - 25;
+    
+    simulatedUserCount = Math.max(1000, simulatedUserCount + userChange);
+    simulatedChatCount = Math.max(500, simulatedChatCount + chatChange);
+    
+    userCount.textContent = simulatedUserCount.toLocaleString();
+    chatCount.textContent = simulatedChatCount.toLocaleString();
+}
+
+// Setup interest tag interactions
+function setupInterestTags() {
+    // Set initial selected interests
+    document.querySelectorAll('.interest-tag').forEach(tag => {
+        const interest = tag.getAttribute('data-interest');
+        if (selectedInterests.has(interest)) {
+            tag.classList.add('selected');
+        }
+        
+        tag.addEventListener('click', () => {
+            tag.classList.toggle('selected');
+            const interest = tag.getAttribute('data-interest');
+            
+            if (selectedInterests.has(interest)) {
+                selectedInterests.delete(interest);
+            } else {
+                selectedInterests.add(interest);
+            }
+            
+            // If we're connected, show a message about interests updated
+            if (isConnected) {
+                addMessageToChat("Your interests have been updated. Your next partner will be matched based on these interests.", "system");
+            }
+        });
+    });
+}
+
+// Setup event listeners
+function setupEventListeners() {
+    // Send message on button click
+    sendBtn.addEventListener('click', sendMessage);
+    
+    // Send message on Enter key
+    messageInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            sendMessage();
+        }
+    });
+    
+    // Start new chat
+    newChatBtn.addEventListener('click', startNewChat);
+    
+    // Stop current chat
+    stopChatBtn.addEventListener('click', stopChat);
+    
+    // Add interests button
+    interestBtn.addEventListener('click', () => {
+        alert("Select interests from the list above to match with people who share your hobbies!");
+    });
+    
+    // Language select change
+    languageSelect.addEventListener('change', () => {
+        const selectedLang = languageSelect.value;
+        if (selectedLang !== 'auto') {
+            addMessageToChat(`Language set to: ${languageSelect.options[languageSelect.selectedIndex].text}`, "system");
+        }
+    });
+    
+    // Privacy settings change
+    anonymousMode.addEventListener('change', updatePrivacySettings);
+    safeMode.addEventListener('change', updatePrivacySettings);
+    locationShare.addEventListener('change', updatePrivacySettings);
+}
+
+// Update privacy settings
+function updatePrivacySettings() {
+    const settings = {
+        anonymous: anonymousMode.checked,
+        safeMode: safeMode.checked,
+        shareLocation: locationShare.checked
+    };
+    
+    // In a real app, you would send these settings to a server
+    console.log('Privacy settings updated:', settings);
+    
+    if (isConnected) {
+        addMessageToChat("Privacy settings updated. These will apply to your next chat.", "system");
+    }
+}
+
+// Start a new chat
+function startNewChat() {
+    if (isConnected) {
+        stopChat();
+        setTimeout(() => {
+            connectToPartner();
+        }, 500);
+    } else {
+        connectToPartner();
+    }
+}
+
+// Connect to a random partner
+function connectToPartner() {
+    // Simulate connection delay
+    updateStatus("Connecting...", false);
+    
+    setTimeout(() => {
+        // Select a random partner based on interests if any are selected
+        let potentialPartners = simulatedUsers;
+        
+        if (selectedInterests.size > 0) {
+            // Filter partners with matching interests
+            potentialPartners = simulatedUsers.filter(user => {
+                return user.interests.some(interest => selectedInterests.has(interest));
+            });
+            
+            // If no matches, use all partners
+            if (potentialPartners.length === 0) {
+                potentialPartners = simulatedUsers;
+                addMessageToChat("No partners found with your selected interests. Connecting to a random partner.", "system");
+            }
+        }
+        
+        // Select a random partner from filtered list
+        const randomUser = potentialPartners[Math.floor(Math.random() * potentialPartners.length)];
+        currentPartner = randomUser;
+        
+        // Check for interest match
+        const partnerInterests = new Set(randomUser.interests);
+        const commonInterests = [...selectedInterests].filter(x => partnerInterests.has(x));
+        
+        // Update UI with partner info
+        partnerName.textContent = randomUser.name;
+        partnerLocation.textContent = randomUser.location;
+        partnerAvatar.textContent = randomUser.avatar;
+        
+        // Enable chat
+        messageInput.disabled = false;
+        sendBtn.disabled = false;
+        stopChatBtn.disabled = false;
+        newChatBtn.disabled = true;
+        isConnected = true;
+        
+        // Update status
+        updateStatus("Connected", true);
+        
+        // Add welcome message
+        addMessageToChat(`Connected with ${randomUser.name} from ${randomUser.location}.`, "system");
+        
+        // Show common interests if any
+        if (commonInterests.length > 0) {
+            addMessageToChat(`You both like: ${commonInterests.join(', ')}.`, "system");
+        }
+        
+        // Reset message count for auto-replies
+        messageCount = 0;
+        
+        // Simulate partner's first message after a delay
+        setTimeout(() => {
+            const greetings = [
+                "Hello there! How's your day going?",
+                "Hi! Nice to meet you. Where are you from?",
+                "Hey! What do you like to do for fun?",
+                "Hello! I see we have some common interests. Do you like music?",
+                "Hi there! Beautiful day for a chat, isn't it?"
+            ];
+            
+            const randomGreeting = greetings[Math.floor(Math.random() * greetings.length)];
+            addMessageToChat(randomGreeting, "received");
+        }, 1000);
+    }, 1500);
+}
+
+// Stop current chat
+function stopChat() {
+    if (!isConnected) return;
+    
+    // Add disconnect message
+    addMessageToChat(`Disconnected from ${currentPartner.name}.`, "system");
+    
+    // Reset UI
+    partnerName.textContent = "Looking for partner...";
+    partnerLocation.textContent = "Click 'Start New Chat' to begin";
+    partnerAvatar.textContent = "?";
+    
+    // Disable chat
+    messageInput.disabled = true;
+    sendBtn.disabled = true;
+    stopChatBtn.disabled = true;
+    newChatBtn.disabled = false;
+    isConnected = false;
+    
+    // Update status
+    updateStatus("Disconnected", false);
+    
+    currentPartner = null;
+}
+
+// Send a message
+function sendMessage() {
+    const message = messageInput.value.trim();
+    
+    if (!message || !isConnected) return;
+    
+    // Filter explicit content if safe mode is enabled
+    let filteredMessage = message;
+    if (safeMode.checked) {
+        filteredMessage = filterExplicitContent(message);
+    }
+    
+    // Add message to chat
+    addMessageToChat(filteredMessage, "sent");
+    messageInput.value = "";
+    
+    // Simulate partner reply after a random delay
+    if (messageCount < 5) { // Limit auto-replies to avoid infinite loop
+        setTimeout(() => {
+            if (isConnected) {
+                generatePartnerReply(filteredMessage);
+                messageCount++;
+            }
+        }, 1000 + Math.random() * 2000);
+    }
+}
+
+// Filter explicit content (basic implementation)
+function filterExplicitContent(message) {
+    const explicitWords = ['badword1', 'badword2', 'explicit']; // Add more words as needed
+    let filtered = message;
+    
+    explicitWords.forEach(word => {
+        const regex = new RegExp(word, 'gi');
+        filtered = filtered.replace(regex, '****');
+    });
+    
+    return filtered;
+}
+
+// Generate a partner reply based on the message
+function generatePartnerReply(userMessage) {
+    const replies = [
+        "That's interesting! Tell me more.",
+        "I've never thought about it that way.",
+        "Where I'm from, we have a different perspective on that.",
+        "That reminds me of something that happened to me recently.",
+        "I agree with you on that point!",
+        "What do you think about the current state of technology?",
+        "Do you have any hobbies you're passionate about?",
+        "Have you traveled anywhere interesting lately?",
+        "What's your favorite kind of music?",
+        "That's cool! I'm learning a lot from our conversation."
+    ];
+    
+    // Check if user asked a question
+    if (userMessage.includes('?')) {
+        const questionReplies = [
+            "That's a good question. Let me think...",
+            "I'm not sure about that, but I can share my opinion.",
+            "Interesting question! In my experience...",
+            "I'd love to answer that. From my perspective..."
+        ];
+        const randomReply = questionReplies[Math.floor(Math.random() * questionReplies.length)];
+        addMessageToChat(randomReply, "received");
+    } else {
+        const randomReply = replies[Math.floor(Math.random() * replies.length)];
+        addMessageToChat(randomReply, "received");
+    }
+}
+
+// Add message to chat UI
+function addMessageToChat(text, type) {
+    const messageDiv = document.createElement('div');
+    messageDiv.classList.add('message');
+    messageDiv.classList.add(type);
+    messageDiv.textContent = text;
+    
+    chatMessages.appendChild(messageDiv);
+    
+    // Scroll to bottom
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+    
+    // Add typing indicator for received messages
+    if (type === 'sent' && isConnected) {
+        showTypingIndicator();
+    }
+}
+
+// Show typing indicator
+function showTypingIndicator() {
+    // Remove any existing typing indicator
+    const existingIndicator = document.querySelector('.typing-indicator');
+    if (existingIndicator) {
+        existingIndicator.remove();
+    }
+    
+    // Add new typing indicator
+    const typingDiv = document.createElement('div');
+    typingDiv.classList.add('message', 'received', 'typing-indicator');
+    typingDiv.id = 'typing-indicator';
+    typingDiv.innerHTML = '<div class="typing-dots"><span></span><span></span><span></span></div>';
+    
+    chatMessages.appendChild(typingDiv);
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+    
+    // Remove after random time (simulating thinking time)
+    setTimeout(() => {
+        const indicator = document.getElementById('typing-indicator');
+        if (indicator) {
+            indicator.remove();
+        }
+    }, 1000 + Math.random() * 2000);
+}
+
+// Update connection status
+function updateStatus(text, isConnected) {
+    statusText.textContent = text;
+    
+    if (isConnected) {
+        statusDot.classList.add('connected');
+    } else {
+        statusDot.classList.remove('connected');
+    }
+}
+
+// Initialize the app when DOM is loaded
+document.addEventListener('DOMContentLoaded', init);
